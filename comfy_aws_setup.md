@@ -1,3 +1,5 @@
+
+# AWS-specific Setup
 Sign into AWS console
 
 Create EC2 instance using AMI
@@ -10,7 +12,6 @@ Set up an SSH-config bookmark forwarding port 8188 (For comfyui)
 
 Create an EBS volume of 200GB and mount to `/dev/sdg` . This is where we will store comfy, the env, and the model files, and we can persist this volume when we stop the instance to save costs.
 
-# First time setup
 SSH into the instance
 
 Update and upgrade
@@ -38,6 +39,16 @@ sudo blkid /dev/nvme2n1
 # Mount
 sudo mount -a
 ```
+
+# Runpod-specific setup
+Create a pod and a network storage volume of 200GB
+Add a public key
+SSH in via 
+```
+ssh abcdefg1234567.runpod.io -i ~/.ssh/tj_runpod.pem -L 8188:localhost:8188
+```
+
+# First time setup
 
 Install Conda
 ```
