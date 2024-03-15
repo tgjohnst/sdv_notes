@@ -1,5 +1,5 @@
 
-# AWS-specific Setup
+# AWS-specific Setup (deprecated, note that A10G is not enough VRAM to run well)
 Sign into AWS console
 
 Create EC2 instance using AMI
@@ -38,6 +38,7 @@ sudo blkid /dev/nvme2n1
 # echo "UUID=b7490733-9b3a-4100-9723-69427a0362cd /workspace ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
 # Mount
 sudo mount -a
+sudo chown ubuntu:ubuntu /workspace --recursive
 ```
 
 # Runpod-specific setup
@@ -48,19 +49,20 @@ SSH in via
 ssh abcdefg1234567.runpod.io -i ~/.ssh/tj_runpod.pem -L 8188:localhost:8188
 ```
 
+Notes - I had originally tried doing this on networked storage to persist across sessions, but it was way too slow both to run things from or even to copy over prebuilt environments etc from. Ended up being easier to do all this setup on a new node each time, and just use the networked storage for the model files (since downloading them from the runpod datacenter locations takes 15min each)
+
 # First time setup
 
 Install Conda
+(best to do on main system drive for speed, IO is slow on networked /workspace drive)
 ```
 wget https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-Linux-x86_64.sh
 bash Mambaforge-23.11.0-0-Linux-x86_64.sh
-# follow instructions
+# follow instructions and install to /root/mambaforge
 ```
 
 Initial Setup
 ```
-cd /workspace
-sudo chown ubuntu:ubuntu /workspace --recursive
 mkdir github
 ```
 
@@ -71,7 +73,7 @@ git clone https://github.com/comfyanonymous/ComfyUI
 cd ComfyUI
 ```
 
-Download Model Files
+Download Model Files (first time, to networked storage)
 ```
 mkdir models/svd
 cd models/svd
@@ -86,12 +88,19 @@ wget https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1/re
 cd ../..
 ```
 
+Download Model files (subsequent times, from networked storage to local)
+```
+cp /workspace/github/ComfyUI/models/svd models/ --recursive
+cp models/svd/* models/checkpoints
+```
+
 Create conda environment and install dependencies
 ```
-mkdir /workspace/env
-# note that we want python 3.11 since xformers doesnt have a pip wheel available for 3.12 so build takes many hours.
-conda create -p /workspace/env/comfy python=3.11
-conda activate /workspace/env/comfy
+mkdir /env
+# note that we want python 3.11 since pypi doesnt have a prebuilt xformers wheel available for 3.12 so build takes many hours.
+conda create -p /env/comfy python=3.11
+
+conda activate /env/comfy
 # make sure we're using the conda pip and not system pip
 which pip
 pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
@@ -125,21 +134,52 @@ pip install -r requirements.txt
 cd ../..
 ```
 
+Download comfyui essentials (image resize, etc)
+```
+cd custom_nodes/
+git clone https://github.com/cubiq/ComfyUI_essentials
+cd ComfyUI_essentials/
+pip install -r requirements.txt
+cd ../..
+```
+
+Download Anything Everywhere
+```
+cd custom_nodes/
+git clone https://github.com/chrisgoringe/cg-use-everywhere
+cd ..
+```
+
 ```
 conda deactivate
 ```
-# Running it
+
+
+# Running it (on any clean runpod node, after first time setup above is done)
+Make sure your node has enough storage space to copy everything over from the networked storage drive (~200GB should suffice)
+
+Activate mamba on a new node
+```
+wget https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-Linux-x86_64.sh
+bash Mambaforge-23.11.0-0-Linux-x86_64.sh
+# etc
+```
+
+Install screen on node
+```
+apt-get update
+apt-get install screen -y
+```
 
 Start ComfyUI in a persistent screen
 ```
 screen -S comfy
-cd /workspace/github/ComfyUI
-conda activate /workspace/env/comfy
-python main.py
+cd /github/ComfyUI
+conda activate /env/comfy
+python main.py --listen
 ```
+https://{POD_ID}-{INTERNAL_PORT}.proxy.runpod.net
 
 
-https://github.com/thecooltechguy/ComfyUI-Stable-Video-Diffusion
+Starter workflow for Comfy
 https://comfyworkflows.com/workflows/bf3b455d-ba13-4063-9ab7-ff1de0c9fa75
-
-Model https://huggingface.co/model-hub/stable-video-diffusion-img2vid/resolve/70b802a1e32d99addc1509c2e7833a90a3c8d7dd/svd.safetensors
